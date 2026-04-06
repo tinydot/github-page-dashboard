@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Pages Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #0e0f11;
+  --surface: #16181c;
+  --surface2: #1e2026;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.13);
+  --text: #e8eaf0;
+  --text2: #8b8f9a;
+  --text3: #555a66;
+  --accent: #4ade80;
+  --accent-dim: rgba(74,222,128,0.12);
+  --red: #f87171;
+  --red-dim: rgba(248,113,113,0.12);
+  --amber: #fbbf24;
+  --amber-dim: rgba(251,191,36,0.12);
+  --blue: #60a5fa;
+  --blue-dim: rgba(96,165,250,0.12);
+  --radius: 10px;
+  --font: 'DM Sans', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* layout */
+.shell { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+/* header */
+.header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 2rem; gap: 12px; flex-wrap: wrap; }
+.header-left h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.3px; }
+.header-left p { font-size: 13px; color: var(--text2); margin-top: 3px; font-family: var(--mono); }
+.rescan-btn { font-family: var(--font); font-size: 13px; font-weight: 400; padding: 7px 16px; border-radius: 6px; border: 0.5px solid var(--border2); background: var(--surface); color: var(--text2); cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.rescan-btn:hover { color: var(--text); border-color: var(--border2); }
+.rescan-btn.spinning { color: var(--text3); cursor: default; }
+
+/* metrics */
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 2rem; }
+@media(max-width:600px){ .metrics { grid-template-columns: repeat(2, 1fr); } }
+.metric { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.metric-label { font-size: 11px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.metric-val { font-size: 24px; font-weight: 500; color: var(--text); line-height: 1; }
+.metric-val.sm { font-size: 15px; padding-top: 5px; }
+
+/* grid */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+
+/* card */
+.card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1rem 1.125rem; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.15s; }
+.card:hover { border-color: var(--border2); }
+.card.phantom { opacity: 0.5; }
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.card-name { font-size: 14px; font-weight: 500; color: var(--text); text-decoration: none; word-break: break-all; line-height: 1.3; }
+.card-name:hover { color: var(--accent); }
+.card-dbname { font-size: 11px; font-family: var(--mono); color: var(--text3); margin-top: 3px; word-break: break-all; }
+.badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.badge { font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.badge-green { background: var(--accent-dim); color: var(--accent); }
+.badge-red { background: var(--red-dim); color: var(--red); }
+.badge-amber { background: var(--amber-dim); color: var(--amber); }
+.badge-neutral { background: var(--surface2); color: var(--text3); }
+.divider { border: none; border-top: 0.5px solid var(--border); }
+.stores { display: flex; flex-direction: column; gap: 5px; }
+.store-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.store-name { color: var(--text2); font-family: var(--mono); font-size: 12px; }
+.store-count { font-weight: 500; color: var(--text); font-family: var(--mono); font-size: 12px; }
+.card-meta { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono); color: var(--text3); }
+.card-footer { display: flex; justify-content: flex-end; }
+.ann-btn { font-family: var(--font); font-size: 12px; color: var(--text3); background: none; border: 0.5px solid var(--border); border-radius: 5px; padding: 3px 10px; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.ann-btn:hover { color: var(--text2); border-color: var(--border2); }
+.empty-note { font-size: 12px; color: var(--text3); font-style: italic; }
+
+/* empty state */
+.empty-state { text-align: center; padding: 4rem 1rem; color: var(--text3); font-size: 14px; }
+
+/* modal */
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center; }
+.modal-bg.open { display: flex; }
+.modal { background: var(--surface); border: 0.5px solid var(--border2); border-radius: 12px; padding: 1.5rem; width: 340px; max-width: 90vw; display: flex; flex-direction: column; gap: 14px; }
+.modal-title { font-size: 16px; font-weight: 500; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 12px; font-family: var(--mono); color: var(--text3); }
+.field input { font-family: var(--font); font-size: 13px; background: var(--bg); border: 0.5px solid var(--border2); border-radius: 6px; padding: 7px 10px; color: var(--text); outline: none; width: 100%; }
+.field input:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.modal-actions button { font-family: var(--font); font-size: 13px; padding: 6px 16px; border-radius: 6px; cursor: pointer; border: 0.5px solid var(--border2); background: var(--surface2); color: var(--text2); transition: color 0.15s; }
+.modal-actions button.primary { background: var(--accent-dim); color: var(--accent); border-color: transparent; }
+.modal-actions button:hover { color: var(--text); }
+.modal-actions button.primary:hover { color: var(--accent); }
+.modal-dbname { font-family: var(--mono); font-size: 12px; color: var(--text3); background: var(--bg); border-radius: 5px; padding: 6px 10px; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="header">
+    <div class="header-left">
+      <h1>Pages dashboard</h1>
+      <p id="origin-label">—</p>
+    </div>
+    <button class="rescan-btn" id="rescan-btn" onclick="scan()">Rescan</button>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Databases</div><div class="metric-val" id="m-dbs">—</div></div>
+    <div class="metric"><div class="metric-label">Total records</div><div class="metric-val" id="m-recs">—</div></div>
+    <div class="metric"><div class="metric-label">Pages online</div><div class="metric-val" id="m-up">—</div></div>
+    <div class="metric"><div class="metric-label">Last entry</div><div class="metric-val sm" id="m-latest">—</div></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="modal-bg" id="modal-bg" onclick="onBgClick(event)">
+  <div class="modal">
+    <div class="modal-title">Annotate database</div>
+    <div class="modal-dbname" id="m-dbname-display"></div>
+    <input type="hidden" id="m-dbname"/>
+    <div class="field"><label>App name</label><input id="m-label" type="text" placeholder="e.g. Finance tracker" autocomplete="off"/></div>
+    <div class="field"><label>Link URL</label><input id="m-url" type="text" placeholder="https://yourname.github.io/app" autocomplete="off"/></div>
+    <div class="modal-actions">
+      <button onclick="clearAnnotation()">Clear</button>
+      <button onclick="closeModal()">Cancel</button>
+      <button class="primary" onclick="saveAnnotation()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ANN_KEY = 'ghpages_dashboard_annotations';
+let annotations = {};
+try { annotations = JSON.parse(localStorage.getItem(ANN_KEY) || '{}'); } catch(e) {}
+
+function persistAnnotations() {
+  try { localStorage.setItem(ANN_KEY, JSON.stringify(annotations)); } catch(e) {}
+}
+
+function openModal(dbName) {
+  const a = annotations[dbName] || {};
+  document.getElementById('m-dbname').value = dbName;
+  document.getElementById('m-dbname-display').textContent = dbName;
+  document.getElementById('m-label').value = a.label || '';
+  document.getElementById('m-url').value = a.url || '';
+  document.getElementById('modal-bg').classList.add('open');
+  setTimeout(() => document.getElementById('m-label').focus(), 50);
+}
+function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
+function onBgClick(e) { if (e.target === document.getElementById('modal-bg')) closeModal(); }
+function saveAnnotation() {
+  const db = document.getElementById('m-dbname').value;
+  annotations[db] = { label: document.getElementById('m-label').value.trim(), url: document.getElementById('m-url').value.trim() };
+  persistAnnotations(); closeModal(); scan();
+}
+function clearAnnotation() {
+  const db = document.getElementById('m-dbname').value;
+  delete annotations[db]; persistAnnotations(); closeModal(); scan();
+}
+
+const DATE_FIELDS = ['date','updatedAt','updated_at','createdAt','created_at','modified','lastModified','timestamp','ts','time','datetime','recordDate'];
+function extractTs(record) {
+  if (!record || typeof record !== 'object') return null;
+  for (const f of DATE_FIELDS) { const v = record[f]; if (!v) continue; const d = new Date(v); if (!isNaN(d)) return d.getTime(); }
+  for (const k of Object.keys(record)) {
+    const v = record[k];
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) { const d = new Date(v); if (!isNaN(d)) return d.getTime(); }
+    if (typeof v === 'number' && v > 1000000000000 && v < 9999999999999) return v;
+  }
+  return null;
+}
+
+function fmtDate(ts) {
+  if (!ts) return null;
+  const d = new Date(ts), now = new Date(), diff = now - d;
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return Math.round(diff / 60000) + 'm ago';
+  if (diff < 86400000) return Math.round(diff / 3600000) + 'h ago';
+  if (diff < 7 * 86400000) return Math.round(diff / 86400000) + 'd ago';
+  return d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: '2-digit' });
+}
+
+function openIDB(name) {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(name);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+    r.onblocked = () => rej(new Error('blocked'));
+  });
+}
+
+async function inspectDB(name) {
+  try {
+    const db = await openIDB(name);
+    const storeNames = Array.from(db.objectStoreNames);
+    const stores = [];
+    let dbLatest = null;
+    for (const s of storeNames) {
+      const result = await new Promise(res => {
+        try {
+          const tx = db.transaction(s, 'readonly');
+          const store = tx.objectStore(s);
+          let count = 0, latest = null;
+          const cr = store.openCursor();
+          cr.onsuccess = e => {
+            const c = e.target.result;
+            if (c) { count++; const ts = extractTs(c.value); if (ts && (!latest || ts > latest)) latest = ts; c.continue(); }
+          };
+          tx.oncomplete = () => res({ name: s, count, latestTs: latest });
+          tx.onerror = () => res({ name: s, count: 0, latestTs: null });
+        } catch(e) { res({ name: s, count: 0, latestTs: null }); }
+      });
+      if (result.latestTs && (!dbLatest || result.latestTs > dbLatest)) dbLatest = result.latestTs;
+      stores.push(result);
+    }
+    db.close();
+    return { name, stores, latestTs: dbLatest, error: null };
+  } catch(e) {
+    return { name, stores: [], latestTs: null, error: e.message };
+  }
+}
+
+async function checkLive(url) {
+  if (!url) return null;
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 6000);
+    await fetch(url, { method: 'HEAD', mode: 'no-cors', signal: ctrl.signal });
+    return true;
+  } catch(e) { return false; }
+}
+
+function setMetric(id, val) { document.getElementById(id).textContent = val; }
+
+let scanning = false;
+async function scan() {
+  if (scanning) return;
+  scanning = true;
+  const btn = document.getElementById('rescan-btn');
+  btn.textContent = 'Scanning…'; btn.classList.add('spinning');
+
+  document.getElementById('origin-label').textContent = location.origin;
+  ['m-dbs','m-recs','m-up','m-latest'].forEach(id => setMetric(id, '…'));
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  let dbList = [];
+  try { dbList = await indexedDB.databases(); }
+  catch(e) {
+    grid.innerHTML = `<div class="empty-state">indexedDB.databases() not supported in this browser.</div>`;
+    btn.textContent = 'Rescan'; btn.classList.remove('spinning'); scanning = false; return;
+  }
+
+  const dbNames = dbList.map(d => d.name).filter(Boolean);
+  const extraNames = Object.keys(annotations).filter(n => !dbNames.includes(n));
+  const allNames = [...dbNames, ...extraNames];
+
+  if (allNames.length === 0) {
+    grid.innerHTML = `<div class="empty-state">No IndexedDB databases found on this origin.<br>Add apps via annotations to track their links.</div>`;
+    setMetric('m-dbs', '0'); setMetric('m-recs', '0'); setMetric('m-up', '—'); setMetric('m-latest', '—');
+    btn.textContent = 'Rescan'; btn.classList.remove('spinning'); scanning = false; return;
+  }
+
+  const dbResults = await Promise.all(allNames.map(n => inspectDB(n)));
+
+  let totalRecs = 0, globalLatest = null;
+  for (const db of dbResults) {
+    for (const s of db.stores) totalRecs += s.count;
+    if (db.latestTs && (!globalLatest || db.latestTs > globalLatest)) globalLatest = db.latestTs;
+  }
+
+  setMetric('m-dbs', dbResults.filter(d => !extraNames.includes(d.name)).length);
+  setMetric('m-recs', totalRecs.toLocaleString());
+  setMetric('m-latest', globalLatest ? fmtDate(globalLatest) : '—');
+
+  // kick off live checks
+  const liveMap = {};
+  let checkedCount = 0, upCount = 0;
+  for (const [dbName, ann] of Object.entries(annotations)) {
+    if (ann.url) liveMap[dbName] = checkLive(ann.url);
+  }
+  const totalChecked = Object.keys(liveMap).length;
+  setMetric('m-up', totalChecked > 0 ? '…' : '—');
+
+  for (const db of dbResults) {
+    const ann = annotations[db.name] || {};
+    const isPhantom = extraNames.includes(db.name);
+    const hasAnn = !!(ann.label || ann.url);
+
+    const card = document.createElement('div');
+    card.className = 'card' + (isPhantom ? ' phantom' : '');
+
+    // header
+    const header = document.createElement('div');
+    header.className = 'card-header';
+
+    const nameWrap = document.createElement('div');
+    nameWrap.style.minWidth = '0';
+
+    const nameEl = ann.url ? document.createElement('a') : document.createElement('span');
+    nameEl.className = 'card-name';
+    nameEl.textContent = ann.label || db.name;
+    if (ann.url) { nameEl.href = ann.url; nameEl.target = '_blank'; nameEl.rel = 'noopener'; }
+    nameWrap.appendChild(nameEl);
+
+    if (ann.label) {
+      const sub = document.createElement('div');
+      sub.className = 'card-dbname';
+      sub.textContent = db.name;
+      nameWrap.appendChild(sub);
+    }
+
+    const badges = document.createElement('div');
+    badges.className = 'badges';
+
+    const storesBadge = document.createElement('span');
+    storesBadge.className = 'badge ' + (db.error ? 'badge-red' : isPhantom ? 'badge-amber' : 'badge-green');
+    storesBadge.textContent = db.error ? 'error' : isPhantom ? 'no DB' : db.stores.length + (db.stores.length === 1 ? ' store' : ' stores');
+    badges.appendChild(storesBadge);
+
+    if (ann.url) {
+      const liveBadge = document.createElement('span');
+      liveBadge.className = 'badge badge-neutral';
+      liveBadge.textContent = 'pinging…';
+      badges.appendChild(liveBadge);
+      if (liveMap[db.name]) {
+        liveMap[db.name].then(live => {
+          checkedCount++;
+          if (live) upCount++;
+          liveBadge.className = 'badge ' + (live ? 'badge-green' : 'badge-red');
+          liveBadge.textContent = live ? 'online' : 'unreachable';
+          if (totalChecked > 0) setMetric('m-up', upCount + '/' + totalChecked);
+        });
+      }
+    }
+
+    header.appendChild(nameWrap);
+    header.appendChild(badges);
+    card.appendChild(header);
+
+    if (!isPhantom && !db.error && db.stores.length > 0) {
+      const hr = document.createElement('hr'); hr.className = 'divider';
+      card.appendChild(hr);
+      const storesDiv = document.createElement('div'); storesDiv.className = 'stores';
+      for (const s of db.stores) {
+        const row = document.createElement('div'); row.className = 'store-row';
+        const sn = document.createElement('span'); sn.className = 'store-name'; sn.textContent = s.name;
+        const sc = document.createElement('span'); sc.className = 'store-count'; sc.textContent = s.count.toLocaleString();
+        row.appendChild(sn); row.appendChild(sc);
+        storesDiv.appendChild(row);
+      }
+      card.appendChild(storesDiv);
+
+      const meta = document.createElement('div'); meta.className = 'card-meta';
+      const totalInDB = db.stores.reduce((a, s) => a + s.count, 0);
+      meta.innerHTML = `<span>${totalInDB.toLocaleString()} total</span>${db.latestTs ? `<span>${fmtDate(db.latestTs)}</span>` : ''}`;
+      card.appendChild(meta);
+    } else if (db.error) {
+      const e = document.createElement('div'); e.className = 'empty-note'; e.textContent = db.error;
+      card.appendChild(e);
+    } else if (isPhantom) {
+      const e = document.createElement('div'); e.className = 'empty-note'; e.textContent = 'DB not found on this origin';
+      card.appendChild(e);
+    }
+
+    const footer = document.createElement('div'); footer.className = 'card-footer';
+    const annBtn = document.createElement('button'); annBtn.className = 'ann-btn';
+    annBtn.textContent = hasAnn ? 'Edit annotation' : '+ Annotate';
+    annBtn.onclick = () => openModal(db.name);
+    footer.appendChild(annBtn);
+    card.appendChild(footer);
+
+    grid.appendChild(card);
+  }
+
+  btn.textContent = 'Rescan'; btn.classList.remove('spinning'); scanning = false;
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+scan();
+</script>
+</body>
+</html>
