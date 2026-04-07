@@ -41,6 +41,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .rescan-btn { font-family: var(--font); font-size: 13px; font-weight: 400; padding: 7px 16px; border-radius: 6px; border: 0.5px solid var(--border2); background: var(--surface); color: var(--text2); cursor: pointer; transition: color 0.15s, border-color 0.15s; }
 .rescan-btn:hover { color: var(--text); border-color: var(--border2); }
 .rescan-btn.spinning { color: var(--text3); cursor: default; }
+.rescan-btn:disabled { color: var(--text3); cursor: default; opacity: 0.6; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
 
 /* metrics */
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 2rem; }
@@ -73,7 +75,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .store-name { color: var(--text2); font-family: var(--mono); font-size: 12px; }
 .store-count { font-weight: 500; color: var(--text); font-family: var(--mono); font-size: 12px; }
 .card-meta { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono); color: var(--text3); }
-.card-footer { display: flex; justify-content: flex-end; }
+.card-footer { display: flex; justify-content: flex-end; gap: 6px; }
 .ann-btn { font-family: var(--font); font-size: 12px; color: var(--text3); background: none; border: 0.5px solid var(--border); border-radius: 5px; padding: 3px 10px; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
 .ann-btn:hover { color: var(--text2); border-color: var(--border2); }
 .empty-note { font-size: 12px; color: var(--text3); font-style: italic; }
@@ -105,7 +107,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
       <h1>Pages dashboard</h1>
       <p id="origin-label">—</p>
     </div>
-    <button class="rescan-btn" id="rescan-btn" onclick="scan()">Rescan</button>
+    <div class="header-actions">
+      <button class="rescan-btn" id="export-all-btn" onclick="exportAll()">Export all</button>
+      <button class="rescan-btn" id="import-btn" onclick="document.getElementById('import-file').click()">Import</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImportFile(event)"/>
+      <button class="rescan-btn" id="rescan-btn" onclick="scan()">Rescan</button>
+    </div>
   </div>
 
   <div class="metrics">
@@ -116,6 +123,17 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   </div>
 
   <div class="grid" id="grid"></div>
+</div>
+
+<div class="modal-bg" id="import-modal-bg" onclick="onImportBgClick(event)">
+  <div class="modal" style="width:440px;max-width:95vw;">
+    <div class="modal-title">Import backup</div>
+    <div id="import-preview" style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--text2);"></div>
+    <div class="modal-actions">
+      <button onclick="closeImportModal()">Cancel</button>
+      <button class="primary" id="confirm-import-btn" onclick="confirmImport()">Import &amp; overwrite</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-bg" id="modal-bg" onclick="onBgClick(event)">
@@ -161,6 +179,168 @@ function saveAnnotation() {
 function clearAnnotation() {
   const db = document.getElementById('m-dbname').value;
   delete annotations[db]; persistAnnotations(); closeModal(); scan();
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+
+async function exportSingleDB(name) {
+  const db = await openIDB(name);
+  const version = db.version;
+  const storeNames = Array.from(db.objectStoreNames);
+  const stores = [];
+  for (const sName of storeNames) {
+    const storeData = await new Promise(res => {
+      const tx = db.transaction(sName, 'readonly');
+      const store = tx.objectStore(sName);
+      const keyPath = store.keyPath;
+      const autoIncrement = store.autoIncrement;
+      const indexes = Array.from(store.indexNames).map(idxName => {
+        const idx = store.index(idxName);
+        return { name: idxName, keyPath: idx.keyPath, unique: idx.unique, multiEntry: idx.multiEntry };
+      });
+      const records = [];
+      const req = store.openCursor();
+      req.onsuccess = e => {
+        const cursor = e.target.result;
+        if (cursor) { records.push({ key: cursor.key, value: cursor.value }); cursor.continue(); }
+      };
+      tx.oncomplete = () => res({ name: sName, keyPath, autoIncrement, indexes, records });
+      tx.onerror = () => res({ name: sName, keyPath, autoIncrement, indexes, records: [] });
+    });
+    stores.push(storeData);
+  }
+  db.close();
+  return { name, dbVersion: version, stores };
+}
+
+async function exportSingleDBAndDownload(name) {
+  try {
+    const dbExport = await exportSingleDB(name);
+    const payload = { format: 'idb-dashboard-backup', version: 1, exportedAt: new Date().toISOString(), origin: location.origin, databases: [dbExport] };
+    const safeName = name.replace(/[^a-z0-9_-]/gi, '_');
+    downloadJSON(payload, `idb-${safeName}-${new Date().toISOString().slice(0, 10)}.json`);
+  } catch(e) { alert('Export failed: ' + e.message); }
+}
+
+async function exportAll() {
+  const btn = document.getElementById('export-all-btn');
+  btn.textContent = 'Exporting…'; btn.disabled = true;
+  try {
+    let dbList = [];
+    try { dbList = await indexedDB.databases(); } catch(e) {}
+    const dbNames = dbList.map(d => d.name).filter(Boolean);
+    const extraNames = Object.keys(annotations).filter(n => !dbNames.includes(n));
+    const databases = [];
+    for (const name of [...dbNames, ...extraNames]) {
+      try { databases.push(await exportSingleDB(name)); } catch(e) {}
+    }
+    const payload = { format: 'idb-dashboard-backup', version: 1, exportedAt: new Date().toISOString(), origin: location.origin, annotations, databases };
+    downloadJSON(payload, `idb-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  } finally { btn.textContent = 'Export all'; btn.disabled = false; }
+}
+
+function downloadJSON(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ── Import ────────────────────────────────────────────────────────────────────
+
+let pendingImport = null;
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try { showImportPreview(JSON.parse(e.target.result)); }
+    catch(err) { alert('Invalid JSON file: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+function showImportPreview(data) {
+  if (!data || data.format !== 'idb-dashboard-backup' || !Array.isArray(data.databases)) {
+    alert('This file does not appear to be a valid IDB dashboard backup.'); return;
+  }
+  pendingImport = data;
+  const totalRecords = data.databases.reduce((sum, db) => sum + db.stores.reduce((s, st) => s + st.records.length, 0), 0);
+  let html = `<div style="font-family:var(--mono);font-size:11px;color:var(--text3)">From: ${data.origin || '?'} &nbsp;·&nbsp; ${data.exportedAt ? new Date(data.exportedAt).toLocaleString() : '?'}</div>`;
+  html += `<div style="font-size:12px;color:var(--amber);background:var(--amber-dim);border-radius:6px;padding:8px 10px">Existing databases with the same name will be <strong>deleted and replaced</strong>.</div>`;
+  for (const db of data.databases) {
+    const recs = db.stores.reduce((s, st) => s + st.records.length, 0);
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0">`;
+    html += `<span style="font-family:var(--mono);font-size:12px;color:var(--text)">${db.name}</span>`;
+    html += `<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">${db.stores.length} store${db.stores.length !== 1 ? 's' : ''} · ${recs.toLocaleString()} records</span>`;
+    html += `</div>`;
+  }
+  html += `<div style="font-size:12px;color:var(--text2);border-top:0.5px solid var(--border);padding-top:8px">${data.databases.length} database${data.databases.length !== 1 ? 's' : ''} · ${totalRecords.toLocaleString()} total records</div>`;
+  document.getElementById('import-preview').innerHTML = html;
+  document.getElementById('import-modal-bg').classList.add('open');
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal-bg').classList.remove('open');
+  pendingImport = null;
+}
+
+function onImportBgClick(e) { if (e.target === document.getElementById('import-modal-bg')) closeImportModal(); }
+
+async function confirmImport() {
+  if (!pendingImport) return;
+  const data = pendingImport;
+  closeImportModal();
+  const btn = document.getElementById('import-btn');
+  btn.textContent = 'Importing…'; btn.disabled = true;
+  try {
+    for (const dbExport of data.databases) await importSingleDB(dbExport);
+    if (data.annotations) { Object.assign(annotations, data.annotations); persistAnnotations(); }
+    scan();
+  } catch(err) {
+    alert('Import failed: ' + err.message);
+  } finally { btn.textContent = 'Import'; btn.disabled = false; }
+}
+
+async function importSingleDB({ name, dbVersion, stores }) {
+  await new Promise((res, rej) => {
+    const req = indexedDB.deleteDatabase(name);
+    req.onsuccess = res; req.onerror = () => rej(req.error); req.onblocked = res;
+  });
+  const db = await new Promise((res, rej) => {
+    const req = indexedDB.open(name, dbVersion);
+    req.onupgradeneeded = e => {
+      const idb = e.target.result;
+      for (const store of stores) {
+        const opts = { autoIncrement: !!store.autoIncrement };
+        if (store.keyPath !== null && store.keyPath !== undefined) opts.keyPath = store.keyPath;
+        const os = idb.createObjectStore(store.name, opts);
+        for (const idx of (store.indexes || [])) {
+          os.createIndex(idx.name, idx.keyPath, { unique: idx.unique, multiEntry: idx.multiEntry });
+        }
+      }
+    };
+    req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error);
+  });
+  for (const store of stores) {
+    if (!store.records.length) continue;
+    await new Promise((res, rej) => {
+      const tx = db.transaction(store.name, 'readwrite');
+      const os = tx.objectStore(store.name);
+      for (const { key, value } of store.records) {
+        try {
+          if (store.keyPath !== null && store.keyPath !== undefined) os.put(value);
+          else os.put(value, key);
+        } catch(e) {}
+      }
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+  }
+  db.close();
 }
 
 const DATE_FIELDS = ['date','updatedAt','updated_at','createdAt','created_at','modified','lastModified','timestamp','ts','time','datetime','recordDate'];
@@ -370,6 +550,12 @@ async function scan() {
     }
 
     const footer = document.createElement('div'); footer.className = 'card-footer';
+    if (!isPhantom && !db.error) {
+      const expBtn = document.createElement('button'); expBtn.className = 'ann-btn';
+      expBtn.textContent = 'Export';
+      expBtn.onclick = () => exportSingleDBAndDownload(db.name);
+      footer.appendChild(expBtn);
+    }
     const annBtn = document.createElement('button'); annBtn.className = 'ann-btn';
     annBtn.textContent = hasAnn ? 'Edit annotation' : '+ Annotate';
     annBtn.onclick = () => openModal(db.name);
@@ -382,7 +568,7 @@ async function scan() {
   btn.textContent = 'Rescan'; btn.classList.remove('spinning'); scanning = false;
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeImportModal(); } });
 scan();
 </script>
 </body>
